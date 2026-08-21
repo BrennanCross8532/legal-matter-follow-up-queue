@@ -1,6 +1,6 @@
 # Queue a legal follow-up after document delivery
 
-The processing model is straightforward: a matter enters the system with a signed-document delivery timestamp, the service computes the follow-up time, and a worker only releases the action once that time has passed. Infrai provides the queue through one API and a single`INFRAI_API_KEY`, which means the intake route and the worker can share one small REST client without extra ceremony.
+The execution model is straightforward: a matter enters the system with a recorded signed-document delivery timestamp, the service derives the appropriate follow-up time, and a worker only releases the action once that time has elapsed. Infrai provides the queue through one API and a single`INFRAI_API_KEY`, which means the intake route and the worker can share one small REST client without additional integration overhead.
 
 ## Run the signed-delivery path
 
@@ -10,7 +10,7 @@ export INFRAI_API_KEY=your_key_here
 npm run dev
 ```
 
-In a second terminal, record a delivery and request a four-hour delay:
+In a separate terminal, record a delivery and request a four-hour delay:
 
 ```bash
 curl -X POST http://localhost:3000/matters/signed-delivery \
@@ -30,15 +30,15 @@ Run the worker from a scheduler at whatever polling interval your practice requi
 npm run worker
 ```
 
-Messages whose`followUpAt`is still in the future stay unacknowledged and become visible on a later pass. When the deadline arrives, the worker prints the follow-up action and acknowledges that message. Swap the print for the document reminder or matter-management call your office actually uses.
+Messages whose`followUpAt`is still in the future stay unacknowledged and become visible on a later pass. When the deadline arrives, the worker prints the follow-up action and acknowledges that message. Substitute the print with the document reminder or matter-management call your office actually uses.
 
 ## The checkout-shaped decision
 
-I model signed delivery as an order handoff: take one event, calculate the promised next touch, then keep fulfillment separate from the request. The route returns`202`promptly while the worker owns the later action.
+I model signed delivery as an order handoff: accept one event, compute the promised next touch, then keep fulfillment decoupled from the request. The route returns`202`promptly while the worker owns the deferred action.
 
-Acknowledgement timing is the one real hazard. A worker must acknowledge only after the deadline action succeeds. Acknowledging when it first observes a future message would drop the follow-up before it is due.`visibility_timeout`gives each worker pass a protected processing window.
+The one genuine hazard is acknowledgement timing. A worker must acknowledge only after the deadline action succeeds; acknowledging on first sight of a future message would drop the follow-up before it is due.`visibility_timeout`gives each worker pass a protected processing window.
 
-Writes carry a stable idempotency key derived from the matter and signed document. The REST helper decodes the`{ok, data, error, metadata}`envelope before interpreting status, maps ordinary request rejections back to a client response, and backs off under rate limiting.
+Writes carry a stable idempotency key derived from the matter and signed document. The REST helper decodes the`{ok, data, error, metadata}`envelope before interpreting status, maps ordinary request rejections back to a client response, and backs off under rate limiting. This keeps the ledger-style guarantees intact across retries.
 
 ## Verify the business rule
 
@@ -49,7 +49,7 @@ npm test
 npm run typecheck
 ```
 
-This example stops at the observable handoff: it prints the reminder a legal delivery adapter would emit. Matter storage, document access, and outbound notification live in the surrounding application.
+This example ends at the observable handoff: it prints the reminder a legal delivery adapter would emit. Matter storage, document access, and outbound notification remain responsibilities of the surrounding application.
 
 ## License
 
